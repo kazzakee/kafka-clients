@@ -26,7 +26,8 @@ public class ProcessorThread implements Runnable{
     private void processCommand() {
         try {
         	for (ConsumerRecord<String, String> record : consumerRecords) {
-        		log.info("["+record.topic()+"-"+record.partition()+"] offset="+record.offset()+" timestamp="+record.timestamp()+" valueSize="+record.serializedValueSize());
+        		log.info("["+record.topic()+"-"+record.partition()+"] offset="+record.offset()
+        				+" timestamp="+record.timestamp()+" valueSize="+record.serializedValueSize());
         		consumedCount.incrementAndGet();
     		}
         } catch (Exception e) {
