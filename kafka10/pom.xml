@@ -3,11 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.kz</groupId>
-	<artifactId>kafka10-consumer</artifactId>
+	<artifactId>kafka10-clients</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>kafka10-consumer</name>
+	<name>kafka10-clients</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -58,7 +58,7 @@
 	</dependencies>
 	<build>
 		<sourceDirectory>src/main/java</sourceDirectory>
-		<finalName>kafka10-consumer-${version}</finalName>
+		<finalName>kafka10-clients-${version}</finalName>
 		<resources>
 			<resource>
 				<directory>src/main/resources</directory>
@@ -76,12 +76,12 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>2.6</version>
+				<version>2.4.3</version>
 				<configuration>
 					<shadedArtifactAttached>true</shadedArtifactAttached>
-					<shadedArtifactId>kafka10-consumer</shadedArtifactId>
+					<shadedArtifactId>kafka10-clients</shadedArtifactId>
 					<outputDirectory>.dist</outputDirectory>
-					<finalName>kafka10-consumer-shaded</finalName>
+					<finalName>kafka10-clients-shaded</finalName>
 				</configuration>
 				<executions>
 					<execution>

@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory;
 import com.kz.kafka10.utils.PropsUtil;
  
 /**
- * This class demonstrate a simple group consumer sample for kafka v0.10
- * Uses executor service to spawn multi-threadd consumer and records processor
+ * This class demonstrates a simple group consumer for kafka v0.10
+ * Uses executor service to spawn multi-threaded consumer and records processor
  *
  */
 public class ConsumerGroupSample {
@@ -33,6 +33,7 @@ public class ConsumerGroupSample {
  
     static {
     	PropsUtil.loadProps(props, "consumer.properties");
+    	PropsUtil.loadProps(props, "consumer_override.properties");
     }
     
     public ConsumerGroupSample(String[] topics, int poolSize) {
@@ -82,10 +83,10 @@ public class ConsumerGroupSample {
     public static void main(String[] args) {
     	String bootstrapServers = "";
     	String groupId = "";
-    	int poolSize = 1; //threads per topic
-    	String topics = "demo1,demo2"; 
+    	int poolSize = 2; //threads per topic
+    	String topics = ""; 
     	// process command line overrides
-    	if(args!=null) {
+    	if(args!=null && args.length<5) {
 	    	switch(args.length) {
 	    	case 4:
 	    		groupId = args[3];
@@ -102,14 +103,12 @@ public class ConsumerGroupSample {
 		        topics = args[0];
 		        log.info("topics="+topics);
 		        break;
-	    	default: 
-		    	if(args.length!=2 && args.length!=4) {
-		    		System.err.println("Invalid number of args");
-		    		System.err.printf("Usage: java %s <topic1,topic3> [threadPoolSize] [bootstrap.server] [groupId]",ConsumerGroupSample.class.getCanonicalName());
-		    		System.err.printf("\rdefault: threadPoolSize=1, bootstrap.server and groupId are read from consumer.properties ",ConsumerGroupSample.class.getCanonicalName());
-		    		System.exit(1);
-		    	}
 	    	}
+    	} else {
+    		System.err.println("Invalid number of args");
+    		System.err.printf("Usage: java %s <topic1,topic3> [threadPoolSize] [bootstrap.server] [groupId]",ConsumerGroupSample.class.getCanonicalName());
+    		System.err.printf("\rdefault: threadPoolSize=1, bootstrap.server and groupId are read from consumer.properties ",ConsumerGroupSample.class.getCanonicalName());
+    		System.exit(1);
     	}
         try {
         	ConsumerGroupSample consumerGroup = new ConsumerGroupSample(topics.split(","), poolSize);

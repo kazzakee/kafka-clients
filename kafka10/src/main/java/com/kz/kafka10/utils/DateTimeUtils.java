@@ -1,6 +1,5 @@
 package com.kz.kafka10.utils;
 
-
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;

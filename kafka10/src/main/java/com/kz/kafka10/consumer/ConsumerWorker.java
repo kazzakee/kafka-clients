@@ -12,8 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This abstract provides basic worker polling and consuming from given topics.
- * Processing of consumed records is left unimplemented for sub-classes 
+ * This abstract class provides basic worker polling and consuming from given topics.
+ * Processing of consumed records is left unimplemented for subclasses.
  *
  */
 public abstract class ConsumerWorker implements Runnable {
@@ -40,7 +40,7 @@ public abstract class ConsumerWorker implements Runnable {
 			while (running) {
 				ConsumerRecords<?, ?> records = consumer.poll(POLL_TIME);
 				process(records);
-				consumedCount.incrementAndGet();
+				consumedCount.addAndGet(records.count());
 				try {
 					consumer.commitSync();
 				} catch (CommitFailedException e) {

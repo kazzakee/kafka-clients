@@ -33,22 +33,27 @@ public abstract class ProducerTask implements Runnable {
     }
     
     public void run() {
-    	threadName = "ProducerThread [" + threadNumber + "]";
-        log.info("run() started");
+    	threadName = "ProducerTask-" + threadNumber;
+    	Thread.currentThread().setName(Thread.currentThread().getName()+" | "+threadName);
+        log.info(" started");
         long counter=0;        
         for (long nEvents = 0; nEvents < events; nEvents++) {
-           	producer.send(getNextRecord(nEvents), getNextCallback());
-			if (++counter%100 == 0) {
-				log.info(threadName + " sent [{} messages]", counter);
-				delay(MAX_DELAY_MILLISEC);
+           	try {
+				producer.send(getNextRecord(nEvents), getNextCallback());
+				if (++counter%1000 == 0) {
+					log.info("sent [{} messages]", counter);
+					delay(MAX_DELAY_MILLISEC);
+				}
+			} catch (Exception e) {
+				log.error("Failed sending record",e);
 			}
         }
         try {
 			latch.countDown();
 		} catch (Exception e) {
-			log.error("Producer failed", e);
+			log.error("Failed",e);
 		}
-        log.info("Shutting down " + threadName);
+        log.info("Shutting down");
     }
 
 	protected abstract ProducerRecord<String,String> getNextRecord(long eventNum);
@@ -60,7 +65,7 @@ public abstract class ProducerTask implements Runnable {
 		try {
 			Thread.sleep(millies);
 		} catch (InterruptedException e) {
-			log.error("Interrupted "+threadName, e);
+			log.error("Interrupted", e);
 		}
 		
 	}
