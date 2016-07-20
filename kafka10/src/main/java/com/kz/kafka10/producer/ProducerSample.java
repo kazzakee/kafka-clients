@@ -25,14 +25,19 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kz.kafka10.utils.PropsUtil;
+import com.kz.kafka10.utils.shutdown.ShutdownDelegate;
+import com.kz.kafka10.utils.shutdown.Shutdownable;
 
-public class ProducerSample {
+public class ProducerSample implements Shutdownable {
+	protected static final int MESSAGE_BYTES = 5*1024*1024;
+	protected static final int BYTES_PER_SEC = 3*1024*1024;
 	protected static final Logger log = LoggerFactory.getLogger(ProducerSample.class);
 	protected static Properties props = new Properties();
 	
 	protected Producer<String, String> producer;
 	protected ScheduledExecutorService executor;
 	protected List<ProducerTask> producerTasks = new ArrayList<ProducerTask>();
+	protected CountDownLatch latch = null;
 	
 	private List<String> topics;
 	protected long events = 0;
@@ -56,7 +61,7 @@ public class ProducerSample {
 
 	public void start() throws Exception {
         executor = Executors.newScheduledThreadPool(poolSize*topics.size());
-        CountDownLatch latch = new CountDownLatch(poolSize);
+        latch = new CountDownLatch(poolSize);
         for(String topic : topics) {
 	        for(int threadNum=0; threadNum<poolSize; threadNum++) {
 	        	log.info("Starting producer threads");
@@ -80,7 +85,7 @@ public class ProducerSample {
 					protected String getNextValue(long eventNum) {
 						try {
 							return toJson(new RecordData(System.currentTimeMillis(), Thread.currentThread().getName(), 
-									"192.168.22."+rnd.nextInt(255), new BigInteger(2048, rnd).toString(2048)));
+									"192.168.22."+rnd.nextInt(255), new BigInteger(MESSAGE_BYTES, rnd).toString(MESSAGE_BYTES)));
 						} catch (JsonProcessingException e) {
 							throw new RuntimeException("Record generation failed", e);
 						}
@@ -92,14 +97,33 @@ public class ProducerSample {
         }
     }
 
-	public void shutdownAndAwaitTermination() {
+	@Override
+	public CountDownLatch getLatch() {
+		return latch;
+	}
+
+	@Override
+	public void shutdown() {
+		shutdownAndAwaitTermination();
+		if (producer != null) {
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException ie) {
+				ie.printStackTrace();
+			}
+			
+			producer.close(10, TimeUnit.SECONDS);
+		}
+	}
+	
+	protected void shutdownAndAwaitTermination() {
 		executor.shutdown(); // Disable new tasks from being submitted
 		try {
 			// Wait a while for existing tasks to terminate
-			if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+			if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
 				executor.shutdownNow(); // Cancel currently executing tasks
 				// Wait a while for tasks to respond to being cancelled
-				if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+				if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
 					log.error("Pool did not terminate");
 				}
 			}
@@ -111,18 +135,6 @@ public class ProducerSample {
 		}
 	}
 
-	public void shutdown() {
-		shutdownAndAwaitTermination();
-		if (producer != null) {
-			try {
-				Thread.sleep(5000);
-			} catch (InterruptedException ie) {
-				ie.printStackTrace();
-			}
-			producer.close();
-		}
-	}
-	
 	public long getSentCount() {
 		return sentCount.get();
 	}
@@ -174,20 +186,20 @@ public class ProducerSample {
 	
 	public static void main(String[] args) {
 		long timeStart =  System.nanoTime();
-		String[] topics = "topic1,topic2".split(",");
+		if(args.length < 1) {
+			System.err.println("Usage: java com.kz.kafka10.producer.ProducerSample <topic1,topic2>");
+			System.exit(0);
+		}
+		String[] topics = args[0].split(",");
 		int threads = 1;
-		long numOfMessages = 10;
+		long numOfMessages = 100;
+		long TTL = numOfMessages*(MESSAGE_BYTES/BYTES_PER_SEC)*1000;
 		log.info("Starting {} threads producing {} messages each", threads, numOfMessages);
 		ProducerSample producerSample = new ProducerSample(topics, numOfMessages, threads);
 		try {
+			ShutdownDelegate shutdownWaiter = new ShutdownDelegate(producerSample, 60000, log);
 			producerSample.start();
-			// let it run for 60 seconds before shutting down
-			try {
-			    Thread.sleep(60000);
-			} catch (InterruptedException ie) {
-				log.error("Interrupted in sleep...");
-			}
-			producerSample.shutdown();
+			shutdownWaiter.waitAndShutdown(TTL);
 		} catch (Exception e) {
 			log.error("Failed due to exception", e);
 		}

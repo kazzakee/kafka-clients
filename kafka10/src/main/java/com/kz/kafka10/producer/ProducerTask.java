@@ -33,9 +33,9 @@ public abstract class ProducerTask implements Runnable {
     }
     
     public void run() {
-    	threadName = "ProducerTask-" + threadNumber;
+    	threadName = topic+"-ProducerTask-" + threadNumber;
     	Thread.currentThread().setName(Thread.currentThread().getName()+" | "+threadName);
-        log.info(" started");
+        log.info("Task started");
         long counter=0;        
         for (long nEvents = 0; nEvents < events; nEvents++) {
            	try {
@@ -51,9 +51,9 @@ public abstract class ProducerTask implements Runnable {
         try {
 			latch.countDown();
 		} catch (Exception e) {
-			log.error("Failed",e);
+			log.error("countDown failed",e);
 		}
-        log.info("Shutting down");
+        log.info("Task completed");
     }
 
 	protected abstract ProducerRecord<String,String> getNextRecord(long eventNum);

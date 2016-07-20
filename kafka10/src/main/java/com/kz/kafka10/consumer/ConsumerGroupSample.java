@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -14,22 +15,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.kz.kafka10.utils.PropsUtil;
+import com.kz.kafka10.utils.shutdown.ShutdownDelegate;
+import com.kz.kafka10.utils.shutdown.Shutdownable;
  
 /**
  * This class demonstrates a simple group consumer for kafka v0.10
  * Uses executor service to spawn multi-threaded consumer and records processor
  *
  */
-public class ConsumerGroupSample {
+public class ConsumerGroupSample implements Shutdownable {
 	protected static final Logger log = LoggerFactory.getLogger(ConsumerGroupSample.class);
 	protected static Properties props = new Properties();
-    
+	
     protected KafkaConsumer<String, String> consumer;
     protected ScheduledExecutorService executor = null;
     protected List<String> topics;
     protected int poolSize;
     protected List<ConsumerWorker> consumerList = new ArrayList<ConsumerWorker>();
     protected List<RecordsProcessor> processorList = new ArrayList<RecordsProcessor>();
+	protected CountDownLatch latch;
  
     static {
     	PropsUtil.loadProps(props, "consumer.properties");
@@ -43,10 +47,11 @@ public class ConsumerGroupSample {
   
     public void start() throws Exception {
         executor = Executors.newScheduledThreadPool(topics.size()*poolSize);
+        latch = new CountDownLatch(poolSize);
         for(int k=0; k<topics.size(); k++) {
         	log.info("Starting consumer threads");
 	        consumer = new KafkaConsumer<String, String>(props);
-	    	ConsumerWorker consumeLoop = new ConsumerWorker(consumer, topics) {
+	    	ConsumerWorker consumeLoop = new ConsumerWorker(consumer, topics, latch) {
 	    		@Override
 				protected void process(ConsumerRecords<?, ?> records) {
 	    			if(records.count() > 0) {
@@ -84,7 +89,7 @@ public class ConsumerGroupSample {
     	String bootstrapServers = "";
     	String groupId = "";
     	int poolSize = 2; //threads per topic
-    	String topics = ""; 
+    	String topics = "topic1,topic2,topic3"; 
     	// process command line overrides
     	if(args!=null && args.length<5) {
 	    	switch(args.length) {
@@ -112,16 +117,16 @@ public class ConsumerGroupSample {
     	}
         try {
         	ConsumerGroupSample consumerGroup = new ConsumerGroupSample(topics.split(","), poolSize);
+        	ShutdownDelegate shutdownWaiter = new ShutdownDelegate(consumerGroup, 60000, log);
 			consumerGroup.start();
-			// let it run for 60 seconds before shutting down
-			try {
-			    Thread.sleep(60000);
-			} catch (InterruptedException ie) {
-				log.error("Interrupted in sleep...");
-			}
-			consumerGroup.shutdown();
+			shutdownWaiter.waitAndShutdown();
 		} catch (Exception e) {
 			log.error("Exception encountered", e);
 		}
     }
+
+	@Override
+	public CountDownLatch getLatch() {
+		return null;
+	}
 }

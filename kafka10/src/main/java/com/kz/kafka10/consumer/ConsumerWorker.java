@@ -26,10 +26,10 @@ public abstract class ConsumerWorker implements Runnable {
 	protected final CountDownLatch shutdownLatch;
 	protected boolean running = true;
 
-	public ConsumerWorker(KafkaConsumer<?, ?> consumer, List<String> topics) {
+	public ConsumerWorker(KafkaConsumer<?, ?> consumer, List<String> topics, CountDownLatch latch) {
 		this.consumer = consumer;
 		this.topics = topics;
-		this.shutdownLatch = new CountDownLatch(1);
+		this.shutdownLatch = latch;
 	}
 
 	protected abstract void process(ConsumerRecords<?, ?> records);
@@ -55,8 +55,14 @@ public abstract class ConsumerWorker implements Runnable {
 		} finally {
 			if (consumer != null)
 				consumer.close();
-			shutdownLatch.countDown();
+			try {
+				shutdownLatch.countDown();
+			} catch (Exception e) {
+				log.error("countDown failed", e);
+			}
+			
 		}
+		log.info("Task completed");
 	}
 
 	public void shutdown() throws InterruptedException {
