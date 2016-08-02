@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 public class ShutdownDelegate {
 	private Shutdownable app = null;
 	private AtomicBoolean interrupted = new AtomicBoolean(false);
-	private int maxwaittime = 10000;
+	private int maxWaitTime = 10000;
 	private Logger log = null;
 
 	public ShutdownDelegate(Shutdownable app) {
@@ -21,15 +21,15 @@ public class ShutdownDelegate {
 	
 	public ShutdownDelegate(Shutdownable app, int maxwaittime, Logger log) {
 		this(app, log);
-		this.maxwaittime  = maxwaittime;
+		this.maxWaitTime  = maxwaittime;
 	}
 		
 	public void waitAndShutdown() {
-		this.waitAndShutdown(this.maxwaittime, this.log);
+		this.waitAndShutdown(this.maxWaitTime, this.log);
 	}
 
-	public void waitAndShutdown(long maxwaittime) {
-		this.waitAndShutdown(maxwaittime, this.log);
+	public void waitAndShutdown(long maxWaitTime) {
+		this.waitAndShutdown(maxWaitTime, this.log);
 	}
 
 	protected void checkInterrupt() {
@@ -37,17 +37,17 @@ public class ShutdownDelegate {
 			this.interrupted.set(true);
 	}
 
-	private void waitAndShutdown(long maxwaittime, Logger log) {
+	private void waitAndShutdown(long maxWaitTime, Logger log) {
 		// let it wait for given time or until interrupted
-		int waittime = 0;
+		int waitTime = 0;
 		try {
-			while(maxwaittime>waittime) {
+			while(maxWaitTime>waitTime) {
 				checkInterrupt();
 				if(!interrupted.get())
 					Thread.sleep(1000);
 				else
 					throw new InterruptedException("proceed to shutdown");
-				waittime+=1000;
+				waitTime++;
 			}
 		} catch (InterruptedException ie) {
 			if(log!=null)

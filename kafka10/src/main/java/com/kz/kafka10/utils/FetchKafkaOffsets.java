@@ -48,15 +48,15 @@ public class FetchKafkaOffsets {
 		try {
 			String clientId = CLIENT_ID;
 			short partitionCount = 2;
-			short prevHours = -2;
+			short prevDuration = -10;
 			for(int partition = 0; partition<partitionCount; partition++){
-				for(int prevH=1; prevH > prevHours; prevH--) {
+				for(int prevD=1; prevD > prevDuration; prevD--) {
 					for(String brokerUrl : BROKER_HOST_URLS){
 						currentlyQueryingBrokerUrl = brokerUrl;
 						log.debug("* Fetch from broker={}",currentlyQueryingBrokerUrl);
 						SimpleConsumer consumer = getConsumerInstance(brokerUrl);
-							log.debug("== querying around time {}", DateTimeUtils.toWholeHour(new Date(), prevH));
-							if(getAndPrintOffsets(topic, partition, DateTimeUtils.toWholeHour(new Date(), prevH).getTime(), clientId, consumer))
+							log.debug("== querying around time {}", DateTimeUtils.toWholeMinute(new Date(), prevD));
+							if(getAndPrintOffsets(topic, partition, DateTimeUtils.toWholeMinute(new Date(), prevD).getTime(), clientId, consumer))
 								break;
 					}
 				}
@@ -96,11 +96,9 @@ public class FetchKafkaOffsets {
 	protected static List<Long> getOffsets(SimpleConsumer consumer, String topic, int partition, long whichTime, String clientId, int offsetCount) {
 		List<Long> list = new ArrayList<Long>();
 		java.util.Map<TopicAndPartition, PartitionOffsetRequestInfo> requestInfo = new java.util.HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
-		long bufferTime = 2*60*1000; //2 mins
+		long bufferTime = 0*60*1000; //2 mins
 		requestInfo.put(new TopicAndPartition(topic, partition), new PartitionOffsetRequestInfo(whichTime+bufferTime , offsetCount));
 		OffsetResponse response = consumer.getOffsetsBefore(new OffsetRequest(requestInfo, kafka.api.OffsetRequest.CurrentVersion(), clientId));
-		
-		//fetchOffsetsNew(consumer, topic, partition, clientId);
 		
 		if (response.hasError()) {
 			short code = response.errorCode(topic, partition);
@@ -114,7 +112,7 @@ public class FetchKafkaOffsets {
 	}
 
 	@SuppressWarnings("unused")
-	private static void fetchOffsetsNew(SimpleConsumer consumer, String topic, int partition, String clientId) {
+	private static void fetchOffsetsNew(SimpleConsumer consumer, String topic, int partition, String clientId, long whichTime, int offsetCount) {
 		List<TopicAndPartition> ptlist = new ArrayList<>();
 		//for(int i=0; i<3; i++)
 		{

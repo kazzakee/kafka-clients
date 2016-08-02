@@ -24,14 +24,16 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kz.kafka10.producer.ProducerTask.MESSAGE_TYPE;
 import com.kz.kafka10.utils.PropsUtil;
 import com.kz.kafka10.utils.shutdown.ShutdownDelegate;
 import com.kz.kafka10.utils.shutdown.Shutdownable;
 
 public class ProducerSample implements Shutdownable {
-	protected static final int MESSAGE_BYTES = 5*1024*1024;
-	protected static final int BYTES_PER_SEC = 3*1024*1024;
 	protected static final Logger log = LoggerFactory.getLogger(ProducerSample.class);
+	protected static final int MESSAGE_BYTES = 1*1024*1024;
+	protected static final int BYTES_PER_SEC = 1*1024*1024;
+	protected static final int log_interval = 11;
 	protected static Properties props = new Properties();
 	
 	protected Producer<String, String> producer;
@@ -46,6 +48,8 @@ public class ProducerSample implements Shutdownable {
 	protected AtomicLong failCount = new AtomicLong(0);
 	protected AtomicLong ackCount = new AtomicLong(0);
 	protected ObjectMapper mapper = new ObjectMapper();
+	protected int delayMs = 10;//default: 10ms
+	protected MESSAGE_TYPE messageType = MESSAGE_TYPE.SMALL;
 
     static {
     	PropsUtil.loadProps(props, "producer.properties");
@@ -56,9 +60,15 @@ public class ProducerSample implements Shutdownable {
 		this.topics = Arrays.asList(topics);
 		this.events = events;
 		this.poolSize = poolSize;
+		this.messageType = MESSAGE_TYPE.valueOf(props.getProperty("message.type").toUpperCase());
 		mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
 	}
 
+	public void start(int delayMs) throws Exception {
+		this.delayMs = delayMs;
+		this.start();
+	}
+	
 	public void start() throws Exception {
         executor = Executors.newScheduledThreadPool(poolSize*topics.size());
         latch = new CountDownLatch(poolSize);
@@ -66,12 +76,12 @@ public class ProducerSample implements Shutdownable {
 	        for(int threadNum=0; threadNum<poolSize; threadNum++) {
 	        	log.info("Starting producer threads");
 	    		producer = new KafkaProducer<String,String>(props);
-	    		ProducerTask producerTask = new ProducerTask(producer, topic, events, threadNum, latch) {
+	    		ProducerTask producerTask = new ProducerTask(producer, topic, events, threadNum, delayMs, latch) {
 	    			Random rnd = new Random();
 					@Override
 				    protected ProducerRecord<String,String> getNextRecord(long eventNum) {
 						sentCount.incrementAndGet();
-						return new ProducerRecord<String, String>(topic, getNextKey(eventNum), getNextValue(eventNum));
+						return new ProducerRecord<String, String>(topic, getNextKey(eventNum), getNextValue(eventNum, messageType));
 					}
 					@Override
 					protected Callback getNextCallback() {
@@ -82,11 +92,14 @@ public class ProducerSample implements Shutdownable {
 						return null;
 					}
 					@Override
-					protected String getNextValue(long eventNum) {
+					protected String getNextValue(long eventNum, MESSAGE_TYPE type) {
 						try {
-							return toJson(new RecordData(System.currentTimeMillis(), Thread.currentThread().getName(), 
+							if(type==MESSAGE_TYPE.LARGE)
+								return toJson(new RecordData(System.currentTimeMillis(), Thread.currentThread().getName(), 
 									"192.168.22."+rnd.nextInt(255), new BigInteger(MESSAGE_BYTES, rnd).toString(MESSAGE_BYTES)));
-						} catch (JsonProcessingException e) {
+							else
+								return "this is simple line number #"+rnd.nextInt(1024);
+						} catch (/*JsonProcessing*/Exception e) {
 							throw new RuntimeException("Record generation failed", e);
 						}
 					}
@@ -161,7 +174,7 @@ public class ProducerSample implements Shutdownable {
 			}
 			if(meta != null) {
 				ackCount.incrementAndGet();
-				if(ackCount.get()%1000==0)
+				if(ackCount.get()%log_interval==0)
 					log.info("callback returned meta.offset(): {}, meta.partition(): {}",meta.offset(), meta.partition());
 			}
 		}
@@ -193,12 +206,13 @@ public class ProducerSample implements Shutdownable {
 		String[] topics = args[0].split(",");
 		int threads = 1;
 		long numOfMessages = 100;
-		long TTL = numOfMessages*(MESSAGE_BYTES/BYTES_PER_SEC)*1000;
+		int delayMsBetweenMsgs = 100;
+		long TTL = numOfMessages*(MESSAGE_BYTES/BYTES_PER_SEC)*(delayMsBetweenMsgs);
 		log.info("Starting {} threads producing {} messages each", threads, numOfMessages);
 		ProducerSample producerSample = new ProducerSample(topics, numOfMessages, threads);
 		try {
-			ShutdownDelegate shutdownWaiter = new ShutdownDelegate(producerSample, 60000, log);
-			producerSample.start();
+			ShutdownDelegate shutdownWaiter = new ShutdownDelegate(producerSample, Integer.MAX_VALUE, log);
+			producerSample.start(delayMsBetweenMsgs);
 			shutdownWaiter.waitAndShutdown(TTL);
 		} catch (Exception e) {
 			log.error("Failed due to exception", e);
